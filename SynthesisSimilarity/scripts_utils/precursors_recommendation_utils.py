@@ -372,6 +372,10 @@ class PrecursorsRecommendation(object):
                 {
                     "target_formula": x,
                     "precursors_predicts": [],
+                    # aligned with precursors_predicts; entry is None for the
+                    # common-precursors attempt, else a dict with the reference
+                    # target index/set and what was added beyond it
+                    "provenance": [],
                 }
             )
 
@@ -390,16 +394,18 @@ class PrecursorsRecommendation(object):
                 shape=(len(self.all_elements),),
                 dtype=np.float32,
             )
+            # source y_index of each candidate set, for provenance
+            pres_candidates_src = []
             for y_index in most_similar_y_index[: 300 * top_n]:
                 # 30*top_n is sufficient to get recommendations
                 # no need to check all ref targets
                 # all recipes for each target used by freq here
-                pres_candidates.extend(
-                    [
-                        item[0]
-                        for item in train_targets_recipes[y_index]["pres"].most_common()
-                    ]
-                )
+                sets_y = [
+                    item[0]
+                    for item in train_targets_recipes[y_index]["pres"].most_common()
+                ]
+                pres_candidates.extend(sets_y)
+                pres_candidates_src.extend([y_index] * len(sets_y))
                 # all_logs[-1]['similar_materials'].append(
                 #     {
                 #         'y_index': int(y_index),
@@ -434,13 +440,7 @@ class PrecursorsRecommendation(object):
                 if pres_predict is not None:
                     pres_multi_predicts.append(pres_predict)
                     all_predicts[-1]["precursors_predicts"].append(pres_predict)
-                    # all_logs[-1]['precursors_predicts'].append(
-                    #     {
-                    #         'i_pres_candidates': None,
-                    #         'pres': None,
-                    #         'pres_predict': pres_predict,
-                    #     }
-                    # )
+                    all_predicts[-1]["provenance"].append(None)
 
             pres_conditional_tried = set()
             for i in range(len(pres_candidates)):
@@ -459,6 +459,10 @@ class PrecursorsRecommendation(object):
                         pres_predict.add(p["formula"])
                         eles_covered |= p["elements"]
                         precursors_conditional.append(p["composition"])
+
+                # what was borrowed directly from the reference recipe,
+                # before MPC/common completion fills element gaps
+                borrowed = set(pres_predict)
 
                 # print('pres_predict 1', pres_predict)
                 if not eles_x.issubset(eles_covered):
@@ -530,13 +534,16 @@ class PrecursorsRecommendation(object):
                     continue
                 pres_multi_predicts.append(pres_predict)
                 all_predicts[-1]["precursors_predicts"].append(pres_predict)
-                # all_logs[-1]['precursors_predicts'].append(
-                #     {
-                #         'i_pres_candidates': i,
-                #         'pres': [p['formula'] for p in pres.values()],
-                #         'pres_predict': pres_predict,
-                #     }
-                # )
+                all_predicts[-1]["provenance"].append(
+                    {
+                        "ref_index": int(pres_candidates_src[i]),
+                        "similarity": float(
+                            all_distance[x_index, pres_candidates_src[i]]
+                        ),
+                        "ref_set": sorted(pres.keys()),
+                        "added": sorted(set(pres_predict) - borrowed),
+                    }
+                )
 
                 if len(pres_multi_predicts) >= top_n:
                     break
@@ -895,7 +902,10 @@ class PrecursorsRecommendation(object):
             all_rxns_predict.append([])
             all_pres_predict_filtered.append([])
             pres_added = set()
-            for pres in pred["precursors_predicts"]:
+            all_provenance = pred.get("provenance") or [None] * len(
+                pred["precursors_predicts"]
+            )
+            for pres, prov in zip(pred["precursors_predicts"], all_provenance):
                 pres = self._filter_out_organic_precursors(pres)
                 pres = self._precursors_to_ref_formulas(
                     precursors=pres,
@@ -939,6 +949,7 @@ class PrecursorsRecommendation(object):
                     "left": rxn_predict[1]["left"],
                     "right": rxn_predict[1]["right"],
                     "reaction_string": rxn_predict[3],
+                    "provenance": prov,
                 }
                 all_rxns_predict[-1].append(rxn_predict)
                 all_pres_predict_filtered[-1].append(pres)

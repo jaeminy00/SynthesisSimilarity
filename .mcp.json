@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "synthesis-similarity": {
+      "command": "/Users/jmlbl/dev/clones/SynthesisSimilarity/.venv/bin/python",
+      "args": ["/Users/jmlbl/dev/clones/SynthesisSimilarity/mcp_server.py"]
+    }
+  }
+}

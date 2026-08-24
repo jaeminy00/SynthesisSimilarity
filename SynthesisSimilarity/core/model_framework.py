@@ -340,12 +340,13 @@ class MultiTasksOnRecipes(keras.Model):
                 )
 
             # optimizer
+            # legacy optimizers required to restore pre-Keras-2.11 checkpoints
             if self.lr_method_name == "sgd":
-                self.optimizer = keras.optimizers.SGD(
+                self.optimizer = keras.optimizers.legacy.SGD(
                     learning_rate=self.init_learning_rate,
                 )
             elif self.lr_method_name == "adam":
-                self.optimizer = keras.optimizers.Adam(
+                self.optimizer = keras.optimizers.legacy.Adam(
                     learning_rate=self.init_learning_rate,
                 )
             elif self.lr_method_name == "adamdecay":

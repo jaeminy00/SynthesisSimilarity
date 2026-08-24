@@ -27,7 +27,7 @@ def calc_similarity(
     model_dir: str,
 ):
     formula1 = [
-        "NaZr2(PO4)3",
+        "Na4TiO4",
     ]
     formula2 = [
         "Zr3(PO4)4",
@@ -39,10 +39,15 @@ def calc_similarity(
         "NaLa(PO3)4",
         "Sr0.125Ca0.375Zr2(PO4)3",
         "Na5Cu2(PO4)3",
-        "LiGe2(PO4)3",
-        "Li1.8ZrO3",
-        "NaNbO3",
-        "Li2Mg2(MoO4)3",
+        "Na8Ti5O14",
+        "Na2Ti3O7",
+        "Na2Ti6O13",
+        "Na2CO3",
+        "Na2",
+        "Na6Ti2O7",
+        "Na2Ti2O5", 
+        "Na2Ti6O13",
+        "TiO2",
         "Sr2Ce2Ti5O16",
         "Ga0.75Al0.25FeO3",
         "Cu2Te",

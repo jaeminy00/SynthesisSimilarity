@@ -118,3 +118,6 @@ SynthesisSimilarity/scripts_debug
 SynthesisSimilarity/scratch
 SynthesisSimilarity/rsc_preparation
 SynthesisSimilarity/generated
+# downloaded data (python -m SynthesisSimilarity download_necessary_data)
+SynthesisSimilarity/rsc
+SynthesisSimilarity/other_rsc

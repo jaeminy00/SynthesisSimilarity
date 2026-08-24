@@ -36,7 +36,7 @@ def run_recommendations():
     )
 
     test_targets_formulas = [
-        "SrZnSO",
+        "Ca4Nb2O9",
         "Na3TiV(PO4)3",
         "GdLu(MoO4)3",
         "BaYSi2O5N",
