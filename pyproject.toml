@@ -1,0 +1,31 @@
+# Environment for mcp_server.py, pinned to the working venv. setup.py's
+# tensorflow==2.7.0 pin predates this; the v0.5 model was trained and served on 2.15.
+[project]
+name = "synthesis-similarity-mcp"
+version = "0.5.0"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "tensorflow==2.15.1",
+    "keras==2.15.0",
+    "numpy==1.26.4",
+    "pymatgen==2026.5.4",
+    "mcp==2.0.0",
+    "adjusttext==1.4.0",
+    "colorcet==3.2.1",
+    "gdown==6.1.0",
+    "jsonlines==4.0.0",
+    "matplotlib==3.11.1",
+    "protobuf==4.25.9",
+    "psutil==7.2.2",
+    "regex==2026.7.19",
+    "scikit-learn==1.9.0",
+    "scipy==1.17.1",
+    "seaborn==0.13.2",
+    "timebudget==0.7.1",
+    # git-only, not on PyPI. Fork adds pt.json to package_data (upstream wheel omits it
+    # and crashes on import). Missing entirely -> balance_reaction fails at call time.
+    "reactioncompleter @ git+https://github.com/jaeminy00/ReactionCompleter.git@5f878e2",
+]
+
+[tool.uv]
+package = false  # mcp_server.py imports SynthesisSimilarity/ from the repo root
