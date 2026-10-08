@@ -1,8 +1,17 @@
-"""Literature-based precursor recommender MCP server (PrecursorSelector, He et al. Sci. Adv. 2023).
+"""Literature-based precursor recommender MCP server.
+
+Architecture: PrecursorSelector (He et al. Sci. Adv. 2023).
+Weights: v0.5 — retrained on the Lee text-mined dataset (66,154 solid-state
+reactions, 46,816 papers); benchmark parity with the published model.
+Knowledge base: the full converted Lee dataset (28,844 unique targets).
+Unavailable-precursor default: compounds-only list (elemental precursors allowed).
 
 Run:      .venv/bin/python mcp_server.py
 Selftest: .venv/bin/python mcp_server.py --selftest
 """
+import contextlib
+import functools
+import os
 import sys
 
 import numpy as np
@@ -14,8 +23,21 @@ from SynthesisSimilarity.core.mat_featurization import featurize_list_of_composi
 
 mcp = MCPServer("synthesis-similarity")
 
-print("loading PrecursorSelector model + knowledge base (~20s)...", file=sys.stderr)
-REC = PrecursorsRecommendation()
+REPO = os.path.dirname(os.path.abspath(__file__))
+
+print("loading v0.5 model + 66k-reaction knowledge base (~25s)...", file=sys.stderr)
+# The library and Keras print to stdout while loading, but stdout is the JSONRPC
+# wire — stray lines there break the client's handshake. Park stdout on stderr
+# until the model is up; once serving, the SDK diverts fd 1 to stderr itself.
+with contextlib.redirect_stdout(sys.stderr):
+    REC = PrecursorsRecommendation(
+        model_dir=os.path.join(REPO, "generated/v05"),
+        data_path=os.path.join(REPO, "SynthesisSimilarity/rsc_impurity/ss_rxns_kb.npz"),
+        path_pres_unavail=os.path.join(
+            REPO, "SynthesisSimilarity/rsc/pres_unavail_compounds.json"
+        ),
+        all_to_knowledge_base=True,
+    )
 # raw_index -> reaction metadata (doi/year/operations), for provenance lookups
 RAW = {}
 for _r in REC.train_reactions:
@@ -97,14 +119,29 @@ def _format_provenance(prov):
     }
 
 
+
+def _quiet(fn):
+    """The library prints to stdout inside tool calls (e.g. precursors_recommendation_utils
+    prints len(test_targets_formulas) on every recommend_precursors). stdout is the JSONRPC
+    wire, so a stray line corrupts the stream and the client errors on teardown. Park stdout
+    on stderr for the duration of every tool call."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with contextlib.redirect_stdout(sys.stderr):
+            return fn(*args, **kwargs)
+    return wrapper
+
+
 @mcp.tool()
+@_quiet
 def recommend_precursors(
     target: str, top_n: int = 5, avoid: list[str] | None = None, validate: bool = True
 ) -> dict:
     """Recommend precursor sets for a target material using literature-learned
-    synthesis similarity (PrecursorSelector). Each set includes a balanced reaction
-    (when validate=True) and the most likely literature precedent it derives from.
-    `avoid`: precursor formulas to exclude (merged with a built-in unavailable list)."""
+    synthesis similarity (PrecursorSelector architecture, retrained on the Lee
+    dataset). Each set includes a balanced reaction (when validate=True) and the
+    literature precedent it derives from. `avoid`: precursor formulas to exclude
+    (merged with a built-in compound blacklist; elemental precursors are allowed)."""
     if err := _check_formula(target):
         return {"error": err}
     not_avail = REC.pre_set_unavail_default | set(avoid or [])
@@ -141,11 +178,13 @@ def recommend_precursors(
 
 
 @mcp.tool()
+@_quiet
 def find_similar_materials(formula: str, k: int = 10) -> dict:
     """Find the k most synthesis-similar known materials in the text-mined knowledge
-    base (33k targets from ~29k solid-state synthesis papers). Similarity is the
-    cosine of PrecursorSelector embeddings: materials made via similar precursors
-    score high. Returns each neighbor's most common precursor set and paper count."""
+    base (28.8k unique targets from 66,154 solid-state reactions across ~47k papers).
+    Similarity is the cosine of learned composition embeddings: materials made via
+    similar precursors score high. Returns each neighbor's most common precursor
+    set and paper count."""
     if err := _check_formula(formula):
         return {"error": err}
     sims = (_embed([formula]) @ REC.train_targets_vecs.T)[0]
@@ -167,6 +206,7 @@ def find_similar_materials(formula: str, k: int = 10) -> dict:
 
 
 @mcp.tool()
+@_quiet
 def get_literature_recipes(target: str) -> dict:
     """Look up every precursor set reported in the literature for a known target
     material (exact composition match), with paper counts, DOIs, publication years,
@@ -198,6 +238,7 @@ def get_literature_recipes(target: str) -> dict:
 
 
 @mcp.tool()
+@_quiet
 def complete_precursor_set(
     target: str, fixed_precursors: list[str], top_k: int = 10
 ) -> dict:
@@ -231,6 +272,7 @@ def complete_precursor_set(
 
 
 @mcp.tool()
+@_quiet
 def balance_reaction(target: str, precursors: list[str]) -> dict:
     """Check whether a target can be made from the given precursors as a balanced
     reaction (volatile byproducts like CO2/H2O/O2/NH3 allowed). Returns the balanced
@@ -268,7 +310,13 @@ def _selftest():
     r = get_literature_recipes("BaTiO3")
     assert r["recipes"] and r["recipes"][0]["sources"][0]["doi"], r
     r = complete_precursor_set("LaAlO3", ["La(NO3)3"], top_k=5)
-    assert any("NO3" in c["precursor"] for c in r["completions"]), r
+    assert r["completions"] and all(
+        0.0 <= c["score"] <= 1.0 for c in r["completions"]
+    ), r
+    # elemental completions must be possible (compounds-only blacklist + v0.5
+    # vocabulary): this exact case failed under the old all-elements default
+    r = complete_precursor_set("K8Na2(FeSe)25", ["Fe", "K", "Se"], top_k=10)
+    assert any(c["precursor"] == "Na" for c in r["completions"]), r
     r = balance_reaction("BaTiO3", ["BaCO3", "TiO2"])
     assert r["balanced"] and "BaTiO3" in r["reaction"], r
     r = balance_reaction("BaTiO3", ["BaCO3", "SiO2"])

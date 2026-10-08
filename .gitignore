@@ -121,3 +121,6 @@ SynthesisSimilarity/generated
 # downloaded data (python -m SynthesisSimilarity download_necessary_data)
 SynthesisSimilarity/rsc
 SynthesisSimilarity/other_rsc
+hpc_synsim
+SynthesisSimilarity/rsc_impurity
+tanjin_original

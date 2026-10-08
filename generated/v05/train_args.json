@@ -1,0 +1,8 @@
+{
+  "out": "generated/v05",
+  "data": "SynthesisSimilarity/rsc_impurity/v05_split.npz",
+  "epochs": 50,
+  "steps": 10000,
+  "val_pairs": 8192,
+  "seed": "Similarity"
+}
