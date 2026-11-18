@@ -10,6 +10,9 @@ see LITERATURE_DB.md), one row per knowledge-base reaction, counted by paper.
 
 Run:      .venv/bin/python mcp_server.py
 Selftest: .venv/bin/python mcp_server.py --selftest
+uvx:      SYNSIM_DATA_DIR=/path/to/rsc/and/rsc_impurity uvx --python 3.11 --from
+          git+https://github.com/jaeminy00/SynthesisSimilarity@feature/impurity
+          synthesis-similarity-mcp
 """
 import collections
 import contextlib
@@ -22,16 +25,18 @@ import statistics
 import sys
 
 import numpy as np
-from mcp.server import MCPServer
+from mcp.server.fastmcp import FastMCP
 from pymatgen.core import Composition
 
 from SynthesisSimilarity import PrecursorsRecommendation
 from SynthesisSimilarity.core.utils import formula_to_array, array_to_formula
 from SynthesisSimilarity.core.mat_featurization import featurize_list_of_composition
 
-mcp = MCPServer("synthesis-similarity")
+mcp = FastMCP("synthesis-similarity")
 
 REPO = os.path.dirname(os.path.abspath(__file__))
+# rsc/ and rsc_impurity/ are data, not code: an installed server (uvx) needs their path
+DATA = os.environ.get("SYNSIM_DATA_DIR", os.path.join(REPO, "SynthesisSimilarity"))
 
 print("loading v0.5 model + 66k-reaction knowledge base (~25s)...", file=sys.stderr)
 # The library and Keras print to stdout while loading, but stdout is the JSONRPC
@@ -39,8 +44,10 @@ print("loading v0.5 model + 66k-reaction knowledge base (~25s)...", file=sys.std
 # until the model is up; once serving, the SDK diverts fd 1 to stderr itself.
 with contextlib.redirect_stdout(sys.stderr):
     REC = PrecursorsRecommendation(
-        model_dir=os.path.join(REPO, "generated/v05"),
-        data_path=os.path.join(REPO, "SynthesisSimilarity/rsc_impurity/ss_rxns_kb.npz"),
+        model_dir=os.path.join(REPO, "SynthesisSimilarity/models/v05"),
+        freq_path=os.path.join(DATA, "rsc/pre_count_normalized_by_rxn_ss.json"),
+        data_path=os.path.join(DATA, "rsc_impurity/ss_rxns_kb.npz"),
+        path_pres_ref=os.path.join(DATA, "rsc/pres_name_ref.json"),
         path_pres_unavail=os.path.join(
             REPO, "SynthesisSimilarity/rsc/pres_unavail_compounds.json"
         ),
@@ -80,7 +87,7 @@ def _normalize(formula):
     return array_to_formula(formula_to_array(formula, REC.all_elements), REC.all_elements)
 
 
-LIT_DB = os.path.join(REPO, "SynthesisSimilarity/rsc_impurity/literature.db")
+LIT_DB = os.path.join(DATA, "rsc_impurity/literature.db")
 VOLATILE = {"C", "H", "N", "O"}  # leave as CO2/H2O/NOx/O2; ignored when classifying phases
 # ponytail: fixed evidence thresholds; tune once labels are checked against real verdicts
 RARE_UPPER = 0.15     # 0 papers report a phase and the 95% upper bound is below this -> "rarely reported"
@@ -690,8 +697,12 @@ def _selftest():
         )
 
 
-if __name__ == "__main__":
+def main():
     if "--selftest" in sys.argv:
         _selftest()
     else:
         mcp.run()
+
+
+if __name__ == "__main__":
+    main()

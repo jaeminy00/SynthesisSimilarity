@@ -9,7 +9,8 @@ dependencies = [
     "keras==2.15.0",
     "numpy==1.26.4",
     "pymatgen==2026.5.4",
-    "mcp==2.0.0",
+    # 1.x, as as3: its langchain-mcp-adapters needs mcp < 2, and the two share an env
+    "mcp==1.27.1",
     "adjusttext==1.4.0",
     "colorcet==3.2.1",
     "gdown==6.1.0",
@@ -26,6 +27,23 @@ dependencies = [
     # and crashes on import). Missing entirely -> balance_reaction fails at call time.
     "reactioncompleter @ git+https://github.com/jaeminy00/ReactionCompleter.git@5f878e2",
 ]
+
+[project.scripts]
+synthesis-similarity-mcp = "mcp_server:main"
+
+# the wheel, for uvx: the server, the package and its models. The data is not in it.
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["mcp_server"]
+
+[tool.setuptools.packages.find]
+include = ["SynthesisSimilarity*"]
+
+[tool.setuptools.package-data]
+SynthesisSimilarity = ["models/**/*", "rsc/*.json"]
 
 [tool.uv]
 package = false  # mcp_server.py imports SynthesisSimilarity/ from the repo root
